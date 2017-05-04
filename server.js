@@ -11,8 +11,6 @@ function handler (req, res) {
     res.end(data);
 }
 
-var messages = [];
-
 io.on('connection', function (socket) {
 	console.log("CONNECTED - ", socket.id);
 
@@ -25,10 +23,42 @@ io.on('connection', function (socket) {
             socket.join(msg.roomName);
             socket.emit('receive my room',{room: msg.roomName});
         }
+        // console.log(io.nsps['/'].adapter.rooms[msg.roomName].messages)
+        if (typeof io.nsps['/'].adapter.rooms[msg.roomName].messages === 'undefined') {
+            io.nsps['/'].adapter.rooms[msg.roomName].messages = [];
+        }
     });
 
     socket.on('request my room', function (msg) {
         socket.emit('receive my room',{room: Object.keys(socket.rooms)[0]});
+    });
+
+    socket.on('send message', function (msg) {
+        let username = socket.id;
+        let roomName = Object.keys(socket.rooms)[0];
+        if (socket.username) {
+            username = socket.username;
+        }
+        console.log("MESSAGE TO ROOM: ", roomName)
+        io.nsps['/'].adapter.rooms[roomName].messages.push('<b>' + username + '</b>: ' + msg.msg + '<br />');
+        socket.broadcast.to(Object.keys(socket.rooms)[0]).emit('broadcast message', {msg: msg.msg, user: username});
+        socket.emit('broadcast message', {msg: msg.msg, user: username});
+    });
+
+    socket.on('get username', function () {
+        let username = socket.id;
+        if (socket.username) {
+            username = socket.username;
+        }
+        socket.emit('receive username', {username: username});
+    });
+
+    socket.on('change username', function (msg) {
+        socket.username = msg.username;
+    });
+
+    socket.on('get chat history', function () {
+        socket.emit('receive chat history', {chat: io.nsps['/'].adapter.rooms[Object.keys(socket.rooms)[0]].messages})
     });
 
 	socket.on('disconnect', function (socket) {
